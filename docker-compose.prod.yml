@@ -1,0 +1,181 @@
+# Production overlay — host networking, NVMe bind mounts, security hardening
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Required .env.local overrides:
+#   RETH_DATA_DIR=/mnt/nvme0/reth
+#   LIGHTHOUSE_DATA_DIR=/mnt/nvme0/lighthouse
+#   AMP_DATA_DIR=/mnt/nvme0/amp
+#   POSTGRES_DATA_DIR=/mnt/nvme0/postgres
+#   POSTGRES_PASSWORD=<strong-random-password>
+#   GRAFANA_ADMIN_PASSWORD=<strong-random-password>
+
+services:
+  reth:
+    network_mode: host
+    restart: always
+    stop_grace_period: 60s
+    volumes:
+      - ${RETH_DATA_DIR:-reth-data}:/data
+      - ipc-socket:/ipc
+      - jwt-secret:/jwt:ro
+    command:
+      - node
+      - --chain=${ETH_NETWORK:-mainnet}
+      - --datadir=/data
+      - --ipcpath=/ipc/reth.ipc
+      - --authrpc.addr=127.0.0.1
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt/jwt.hex
+      - --http
+      - --http.addr=127.0.0.1
+      - --http.port=8545
+      - --http.api=eth,net,web3
+      - --ws
+      - --ws.addr=127.0.0.1
+      - --ws.port=8546
+      - --ws.api=eth,net,web3
+      - --metrics=127.0.0.1:9001
+      - --rpc.max-connections=500
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  lighthouse:
+    network_mode: host
+    restart: always
+    stop_grace_period: 30s
+    volumes:
+      - ${LIGHTHOUSE_DATA_DIR:-lighthouse-data}:/data
+      - jwt-secret:/jwt:ro
+    command:
+      - lighthouse
+      - beacon_node
+      - --network=${ETH_NETWORK:-mainnet}
+      - --datadir=/data
+      - --execution-endpoint=http://127.0.0.1:8551
+      - --execution-jwt=/jwt/jwt.hex
+      - --checkpoint-sync-url=${LIGHTHOUSE_CHECKPOINT_SYNC_URL}
+      - --http
+      - --http-address=127.0.0.1
+      - --http-port=5052
+      - --http-allow-origin=http://127.0.0.1
+      - --metrics
+      - --metrics-address=127.0.0.1
+      - --metrics-port=5054
+      - --disable-deposit-contract-sync
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  postgres:
+    restart: always
+    volumes:
+      - ${POSTGRES_DATA_DIR:-postgres-data}:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=64MB
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+
+  amp:
+    restart: always
+    volumes:
+      - ${AMP_DATA_DIR:-amp-data}:/data
+      - ipc-socket:/ipc:ro
+      - ./config/amp:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  otel-collector:
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  prometheus:
+    restart: always
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=50GB
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  grafana:
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"

@@ -1,0 +1,29 @@
+[Unit]
+Description=amp-eth-node (Amp + Ethereum full node)
+Documentation=https://github.com/edgeandnode/amp-eth-node
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+# Set to your clone directory
+WorkingDirectory=/opt/amp-eth-node
+User=root
+
+ExecStartPre=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml up --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+# Reth needs time to flush on shutdown
+TimeoutStopSec=300
+
+Restart=on-failure
+RestartSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=amp-eth-node
+
+[Install]
+WantedBy=multi-user.target

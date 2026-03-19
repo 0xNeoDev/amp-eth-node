@@ -1,0 +1,78 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run shellcheck on all shell scripts
+        run: |
+          find . -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck --severity=warning
+
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Run yamllint on all YAML files
+        run: |
+          find . \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" -print0 | xargs -0 yamllint -d relaxed
+
+  toml-validate:
+    name: TOML Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toml Python library
+        run: pip install toml
+
+      - name: Validate all TOML files
+        run: |
+          find . -name "*.toml" -not -path "./.git/*" | while read -r f; do
+            echo "Validating $f"
+            python -c "import toml, sys; toml.load(sys.argv[1])" "$f"
+          done
+
+  docker-compose-validate:
+    name: Docker Compose Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate base compose
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Validate dev overlay
+        run: docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+
+      - name: Validate prod overlay
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+      - name: Validate bench overlay
+        run: docker compose -f docker-compose.yml -f docker-compose.bench.yml config --quiet
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

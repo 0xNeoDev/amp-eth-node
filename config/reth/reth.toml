@@ -1,0 +1,11 @@
+# Reth node configuration
+# Most settings are passed via CLI flags in docker-compose.yml
+# This file is for advanced tuning only
+
+[stages.headers]
+downloader_batch_size = 1000
+downloader_max_concurrent_requests = 100
+
+[stages.bodies]
+downloader_batch_size = 1000
+downloader_max_concurrent_requests = 100

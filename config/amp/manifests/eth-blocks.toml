@@ -1,0 +1,39 @@
+# Ethereum blocks dataset
+[dataset]
+name = "blocks"
+network = "mainnet"
+provider = "eth-mainnet"
+
+[schema]
+table = "blocks"
+
+[extraction]
+entity = "block"
+fields = [
+    "number",
+    "hash",
+    "parent_hash",
+    "timestamp",
+    "miner",
+    "gas_used",
+    "gas_limit",
+    "base_fee_per_gas",
+    "transaction_count",
+    "size",
+]
+
+[transform]
+sql = """
+SELECT
+    number,
+    hash,
+    parent_hash,
+    timestamp,
+    miner,
+    gas_used,
+    gas_limit,
+    base_fee_per_gas,
+    transaction_count,
+    size
+FROM raw_blocks
+"""

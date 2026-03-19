@@ -1,0 +1,27 @@
+# Benchmarking overlay
+# Usage: docker compose -f docker-compose.yml -f docker-compose.bench.yml run --rm bench-runner <script>
+
+services:
+  bench-runner:
+    build:
+      context: ./bench
+      dockerfile: Dockerfile
+    volumes:
+      - ./bench:/bench:ro
+      - ./bench/results:/results
+      - ipc-socket:/ipc:ro
+    environment:
+      RETH_HTTP_URL: http://reth:8545
+      RETH_WS_URL: ws://reth:8546
+      RETH_IPC_PATH: /ipc/reth.ipc
+      AMP_FLIGHT_HOST: amp
+      AMP_FLIGHT_PORT: 1602
+      AMP_JSONL_URL: http://amp:1603
+      AMP_ADMIN_URL: http://amp:1610
+    depends_on:
+      reth:
+        condition: service_healthy
+      amp:
+        condition: service_healthy
+    profiles:
+      - bench

@@ -1,0 +1,78 @@
+# Development overlay — Sepolia testnet, lower resources, debug APIs, adminer
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  reth:
+    command:
+      - node
+      - --chain=sepolia
+      - --datadir=/data
+      - --ipcpath=/ipc/reth.ipc
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt/jwt.hex
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,net,web3,debug,trace,txpool
+      - --http.corsdomain=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=eth,net,web3,debug,trace,txpool
+      - --ws.origins=*
+      - --metrics=0.0.0.0:9001
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8G
+
+  lighthouse:
+    command:
+      - lighthouse
+      - beacon_node
+      - --network=sepolia
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --execution-jwt=/jwt/jwt.hex
+      - --checkpoint-sync-url=https://sepolia.beaconstate.info
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=5052
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-port=5054
+      - --disable-deposit-contract-sync
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8G
+
+  amp:
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8G
+
+  postgres:
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres

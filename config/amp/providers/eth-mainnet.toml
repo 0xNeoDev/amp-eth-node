@@ -1,0 +1,9 @@
+# Ethereum Mainnet EVM-RPC provider via Reth IPC socket
+# IPC is ~2x faster than HTTP (~18K vs ~8K ops/sec)
+
+kind = "evm-rpc"
+network = "mainnet"
+url = "/ipc/reth.ipc"
+concurrent_request_limit = 64
+rpc_batch_size = 100
+timeout = 30

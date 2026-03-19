@@ -1,0 +1,41 @@
+# Ethereum event logs dataset
+[dataset]
+name = "logs"
+network = "mainnet"
+provider = "eth-mainnet"
+
+[schema]
+table = "logs"
+
+[extraction]
+entity = "log"
+fields = [
+    "block_number",
+    "block_hash",
+    "transaction_hash",
+    "transaction_index",
+    "log_index",
+    "address",
+    "topic0",
+    "topic1",
+    "topic2",
+    "topic3",
+    "data",
+]
+
+[transform]
+sql = """
+SELECT
+    block_number,
+    block_hash,
+    transaction_hash,
+    transaction_index,
+    log_index,
+    address,
+    topic0,
+    topic1,
+    topic2,
+    topic3,
+    data
+FROM raw_logs
+"""

@@ -1,0 +1,62 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bench:
+    name: Run Benchmarks
+    runs-on: [self-hosted, linux, x64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build bench Docker image
+        run: docker build -t amp-eth-node-bench ./bench
+
+      - name: Start services
+        run: docker compose up -d
+        # Allow time for Reth and Lighthouse to become healthy before benchmarking.
+        # In practice, services should already be running on the self-hosted runner.
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for Reth..."
+          timeout 60 bash -c 'until curl -sf -X POST -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}" \
+            http://localhost:8545 > /dev/null; do sleep 5; done'
+          echo "Waiting for Amp..."
+          timeout 60 bash -c 'until curl -sf -X POST -H "Content-Type: application/json" \
+            -d "{\"query\":\"SELECT 1\"}" http://localhost:1603 > /dev/null; do sleep 5; done'
+
+      - name: Run RPC throughput benchmark
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.bench.yml \
+            run --rm bench-runner /bench/rpc-throughput.sh | tee bench/results/rpc-throughput.txt
+
+      - name: Run Amp extraction benchmark
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.bench.yml \
+            run --rm bench-runner /bench/amp-extraction.sh | tee bench/results/amp-extraction.txt
+
+      - name: Run Amp query latency benchmark
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.bench.yml \
+            run --rm bench-runner /bench/amp-query-latency.sh | tee bench/results/amp-query-latency.txt
+
+      - name: Run IPC vs HTTP transport benchmark
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.bench.yml \
+            run --rm bench-runner /bench/ipc-vs-http.sh | tee bench/results/ipc-vs-http.txt
+
+      - name: Run end-to-end indexing benchmark
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.bench.yml \
+            run --rm bench-runner /bench/e2e-indexing.sh | tee bench/results/e2e-indexing.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: bench/results/
+          retention-days: 90

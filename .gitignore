@@ -1,0 +1,31 @@
+# Secrets
+.env.local
+jwt/jwt.hex
+
+# Data directories
+data/
+
+# Benchmark results (keep .gitkeep)
+bench/results/*.json
+bench/results/*.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.override.yml
+
+# Upgrade backups
+.env.bak
+.env.tmp
+
+# Benchmark binary results
+bench/results/*.bin

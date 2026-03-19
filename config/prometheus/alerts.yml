@@ -1,0 +1,165 @@
+groups:
+  - name: node_health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for more than 2 minutes."
+
+      - alert: RethNotSyncing
+        expr: reth_blockchain_tree_canonical_chain_height == reth_blockchain_tree_canonical_chain_height offset 5m
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reth chain height is stalled"
+          description: "Reth block height has not changed in 10 minutes."
+
+      - alert: RethPeersLow
+        expr: reth_network_connected_peers < 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reth has fewer than 5 peers"
+          description: "Reth peer count is {{ $value }}. Check network connectivity."
+
+  - name: amp_health
+    rules:
+      - alert: AmpIndexingLag
+        expr: (reth_blockchain_tree_canonical_chain_height - amp_indexed_block_height) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Amp indexing is falling behind"
+          description: "Amp is {{ $value }} blocks behind Reth chain head."
+
+      - alert: AmpIndexingStalled
+        expr: amp_blocks_indexed_total == amp_blocks_indexed_total offset 5m
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Amp has stopped indexing blocks"
+          description: "No new blocks indexed in 10 minutes."
+
+      - alert: AmpQueryLatencyHigh
+        expr: histogram_quantile(0.99, rate(amp_query_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Amp P99 query latency exceeds 5s"
+          description: "P99 query latency is {{ $value }}s."
+
+  - name: infrastructure
+    rules:
+      # --- CPU ---
+      - alert: HighCpuUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host CPU usage above 80%"
+          description: "CPU usage is {{ $value | printf \"%.1f\" }}% on {{ $labels.instance }}."
+
+      - alert: CriticalCpuUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host CPU usage above 95%"
+          description: "CPU usage is {{ $value | printf \"%.1f\" }}% on {{ $labels.instance }}. Services may be degraded."
+
+      # Per-service CPU (fraction of allocated limit)
+      - alert: ServiceCpuSaturation
+        expr: rate(process_cpu_seconds_total[5m]) > 0.9 * on(job) group_left() (count by (job) (up) * 4)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} is saturating its CPU allocation"
+          description: "{{ $labels.job }} CPU rate is {{ $value | printf \"%.2f\" }} cores."
+
+      # --- Memory ---
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory usage above 80%"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}% on {{ $labels.instance }}."
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host memory usage above 90%"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}% on {{ $labels.instance }}. OOM kills may occur."
+
+      # Per-service memory (absolute, for services that export process metrics)
+      - alert: ServiceMemoryHigh
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 14
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} memory usage above 14GB"
+          description: "{{ $labels.job }} is using {{ $value | printf \"%.1f\" }}GB of RSS."
+
+      # --- Disk / Storage ---
+      - alert: HighDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage above 80% on {{ $labels.mountpoint }}"
+          description: "{{ $labels.mountpoint }} on {{ $labels.instance }} is {{ $value | printf \"%.1f\" }}% full."
+
+      - alert: CriticalDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk usage above 90% on {{ $labels.mountpoint }}"
+          description: "{{ $labels.mountpoint }} on {{ $labels.instance }} is {{ $value | printf \"%.1f\" }}% full. Immediate action required."
+
+      - alert: DiskWillFillIn24h
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24*3600) < 0
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk on {{ $labels.mountpoint }} will fill within 24 hours"
+          description: "Based on 6h trend, {{ $labels.mountpoint }} on {{ $labels.instance }} will run out of space within 24 hours."
+
+      - alert: PrometheusStorageHigh
+        expr: prometheus_tsdb_storage_blocks_bytes / 1024 / 1024 / 1024 > 40
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus storage exceeds 40GB"
+          description: "Current TSDB storage: {{ $value | printf \"%.1f\" }}GB."
+
+      # --- Other ---
+      - alert: PostgresConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connections above 80"
+          description: "Current connection count: {{ $value }}."

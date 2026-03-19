@@ -1,0 +1,210 @@
+volumes:
+  ipc-socket:
+  jwt-secret:
+  reth-data:
+  lighthouse-data:
+  amp-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  reth:
+    image: ghcr.io/paradigmxyz/reth:${RETH_VERSION}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - reth-data:/data
+      - ipc-socket:/ipc
+      - jwt-secret:/jwt:ro
+    ports:
+      - "${RETH_HTTP_PORT:-8545}:8545"
+      - "${RETH_WS_PORT:-8546}:8546"
+      - "${RETH_P2P_PORT:-30303}:30303/tcp"
+      - "${RETH_P2P_PORT:-30303}:30303/udp"
+      - "${RETH_METRICS_PORT:-9001}:9001"
+    command:
+      - node
+      - --chain=${ETH_NETWORK:-mainnet}
+      - --datadir=/data
+      - --ipcpath=/ipc/reth.ipc
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt/jwt.hex
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,net,web3,txpool
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=eth,net,web3,txpool
+      - --metrics=0.0.0.0:9001
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}' http://localhost:8545 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  lighthouse:
+    image: sigp/lighthouse:${LIGHTHOUSE_VERSION}
+    restart: unless-stopped
+    depends_on:
+      reth:
+        condition: service_healthy
+    volumes:
+      - lighthouse-data:/data
+      - jwt-secret:/jwt:ro
+    ports:
+      - "${LIGHTHOUSE_P2P_PORT:-9000}:9000/tcp"
+      - "${LIGHTHOUSE_P2P_PORT:-9000}:9000/udp"
+      - "${LIGHTHOUSE_HTTP_PORT:-5052}:5052"
+      - "${LIGHTHOUSE_METRICS_PORT:-5054}:5054"
+    command:
+      - lighthouse
+      - beacon_node
+      - --network=${ETH_NETWORK:-mainnet}
+      - --datadir=/data
+      - --execution-endpoint=http://reth:8551
+      - --execution-jwt=/jwt/jwt.hex
+      - --checkpoint-sync-url=${LIGHTHOUSE_CHECKPOINT_SYNC_URL}
+      - --http
+      - --http-address=0.0.0.0
+      - --http-port=5052
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-port=5054
+      - --disable-deposit-contract-sync
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5052/eth/v1/node/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-amp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amp}
+      POSTGRES_DB: ${POSTGRES_DB:-amp}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-amp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  amp:
+    image: ghcr.io/edgeandnode/amp:${AMP_VERSION}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      reth:
+        condition: service_healthy
+    volumes:
+      - amp-data:/data
+      - ipc-socket:/ipc:ro
+      - ./config/amp:/config:ro
+    ports:
+      - "${AMP_FLIGHT_PORT:-1602}:1602"
+      - "${AMP_JSONL_PORT:-1603}:1603"
+      - "${AMP_ADMIN_PORT:-1610}:1610"
+    environment:
+      AMP_METADATA_DB_URL: "postgres://${POSTGRES_USER:-amp}:${POSTGRES_PASSWORD:-amp}@postgres:5432/${POSTGRES_DB:-amp}"
+    command:
+      - ampd
+      - solo
+      - --config=/config/config.toml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"query\":\"SELECT 1\"}' http://localhost:1603 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION}
+    restart: unless-stopped
+    volumes:
+      - ./config/otel/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:13133/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION}
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/api/v1/status/config > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    ports:
+      - "127.0.0.1:9100:9100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9100/metrics > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION}
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
