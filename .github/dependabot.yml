@@ -1,10 +1,21 @@
 version: 2
 updates:
+  # Dockerfile in bench/ (FROM alpine, vegeta, grpcurl)
   - package-ecosystem: docker
-    directory: /
+    directory: /bench
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     labels:
       - dependencies
       - docker
+
+  # GitHub Actions versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
