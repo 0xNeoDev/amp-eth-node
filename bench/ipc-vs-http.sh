@@ -16,7 +16,7 @@ RPC_PAYLOAD='{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 # --- HTTP ---
 echo "--- HTTP (${RETH_HTTP_URL}) ---"
 HTTP_START=$(date +%s%N)
-for i in $(seq 1 "$ITERATIONS"); do
+for _i in $(seq 1 "$ITERATIONS"); do
     curl -sf -X POST -H 'Content-Type: application/json' \
         -d "$RPC_PAYLOAD" "${RETH_HTTP_URL}" > /dev/null
 done
@@ -31,7 +31,7 @@ echo ""
 echo "--- IPC (${RETH_IPC_PATH}) ---"
 if [[ -S "${RETH_IPC_PATH}" ]]; then
     IPC_START=$(date +%s%N)
-    for i in $(seq 1 "$ITERATIONS"); do
+    for _i in $(seq 1 "$ITERATIONS"); do
         echo "$RPC_PAYLOAD" | socat - UNIX-CONNECT:"${RETH_IPC_PATH}" > /dev/null 2>&1
     done
     IPC_END=$(date +%s%N)

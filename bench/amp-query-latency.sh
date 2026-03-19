@@ -13,7 +13,7 @@ echo ""
 # Simple count query
 echo "--- SELECT count(*) FROM blocks ---"
 TIMES=()
-for i in $(seq 1 "$ITERATIONS"); do
+for _i in $(seq 1 "$ITERATIONS"); do
     START=$(date +%s%N)
     curl -sf -X POST -H 'Content-Type: application/json' \
         -d '{"query":"SELECT count(*) FROM blocks"}' \
@@ -24,7 +24,7 @@ for i in $(seq 1 "$ITERATIONS"); do
 done
 
 # Calculate stats
-IFS=$'\n' SORTED=($(sort -n <<<"${TIMES[*]}")); unset IFS
+mapfile -t SORTED < <(printf '%s\n' "${TIMES[@]}" | sort -n)
 COUNT=${#SORTED[@]}
 P50=${SORTED[$((COUNT * 50 / 100))]}
 P95=${SORTED[$((COUNT * 95 / 100))]}
