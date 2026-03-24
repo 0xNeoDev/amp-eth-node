@@ -1,0 +1,70 @@
+# Arbitrum One production overlay — host networking, NVMe bind mounts, security hardening
+# Usage: docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.arbitrum-prod.yml up -d
+#
+# Required .env.local overrides:
+#   NITRO_L2_DATA_DIR=/mnt/nvme0/nitro-l2
+#   AMP_L2_DATA_DIR=/mnt/nvme0/amp-l2
+
+services:
+  nitro-l2:
+    network_mode: host
+    restart: always
+    stop_grace_period: 60s
+    volumes:
+      - ${NITRO_L2_DATA_DIR:-nitro-l2-data}:/data
+    command:
+      - --parent-chain.connection.url=http://127.0.0.1:${RETH_HTTP_PORT:-8545}
+      - --parent-chain.blob-client.beacon-url=http://127.0.0.1:${LIGHTHOUSE_HTTP_PORT:-5052}
+      - --chain.id=42161
+      - --persistent.chain=/data/chain
+      - --persistent.global-config=/data/global
+      - --http.addr=127.0.0.1
+      - --http.port=8547
+      - --http.vhosts=localhost
+      - --http.api=net,web3,eth,arb
+      - --ws.addr=127.0.0.1
+      - --ws.port=8548
+      - --ws.api=net,web3,eth,arb
+      - --metrics
+      - --metrics-server.addr=127.0.0.1
+      - --metrics-server.port=6070
+      - --execution.caching.archive
+      - --init.latest=pruned
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 32G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  amp-l2:
+    restart: always
+    volumes:
+      - ${AMP_L2_DATA_DIR:-amp-l2-data}:/data
+      - ./config/amp-l2:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  postgres-init-l2:
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "1"

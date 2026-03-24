@@ -31,7 +31,17 @@ scrape_configs:
       - targets: ["node-exporter:9100"]
     metrics_path: /metrics
 
-  - job_name: "nitro"
+  - job_name: "nitro-l2"
+    static_configs:
+      - targets: ["nitro-l2:6070"]
+    metrics_path: /debug/metrics/prometheus
+
+  - job_name: "amp-l2"
+    static_configs:
+      - targets: ["amp-l2:1610"]
+    metrics_path: /metrics
+
+  - job_name: "nitro-orbit"
     static_configs:
       - targets: ["nitro:6070"]
     metrics_path: /debug/metrics/prometheus

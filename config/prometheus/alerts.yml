@@ -57,16 +57,45 @@ groups:
           summary: "Amp P99 query latency exceeds 5s"
           description: "P99 query latency is {{ $value }}s."
 
-  - name: orbit_health
+  - name: arbitrum_l2_health
     rules:
-      - alert: NitroNotSyncing
-        expr: nitro_block_number == nitro_block_number offset 5m
+      - alert: NitroL2NotSyncing
+        expr: nitro_block_number{job="nitro-l2"} == nitro_block_number{job="nitro-l2"} offset 5m
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "Nitro block height is stalled"
-          description: "Nitro block number has not changed in 10 minutes."
+          summary: "Nitro L2 block height is stalled"
+          description: "Arbitrum One block number has not changed in 10 minutes."
+
+      - alert: AmpL2IndexingStalled
+        expr: amp_blocks_indexed_total{job="amp-l2"} == amp_blocks_indexed_total{job="amp-l2"} offset 5m
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Amp L2 has stopped indexing blocks"
+          description: "No new Arbitrum One blocks indexed in 10 minutes."
+
+      - alert: AmpL2QueryLatencyHigh
+        expr: histogram_quantile(0.99, rate(amp_query_duration_seconds_bucket{job="amp-l2"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Amp L2 P99 query latency exceeds 5s"
+          description: "P99 query latency is {{ $value }}s."
+
+  - name: orbit_l3_health
+    rules:
+      - alert: NitroOrbitNotSyncing
+        expr: nitro_block_number{job="nitro-orbit"} == nitro_block_number{job="nitro-orbit"} offset 5m
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nitro Orbit L3 block height is stalled"
+          description: "Orbit block number has not changed in 10 minutes."
 
       - alert: AmpOrbitIndexingStalled
         expr: amp_blocks_indexed_total{job="amp-orbit"} == amp_blocks_indexed_total{job="amp-orbit"} offset 5m
@@ -75,7 +104,7 @@ groups:
           severity: critical
         annotations:
           summary: "Amp Orbit has stopped indexing blocks"
-          description: "No new Orbit blocks indexed in 10 minutes."
+          description: "No new Orbit L3 blocks indexed in 10 minutes."
 
       - alert: AmpOrbitQueryLatencyHigh
         expr: histogram_quantile(0.99, rate(amp_query_duration_seconds_bucket{job="amp-orbit"}[5m])) > 5

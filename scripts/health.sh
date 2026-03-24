@@ -66,7 +66,22 @@ check_service "OTel Collector" "http://localhost:13133/health"
 check_service "Prometheus" "http://localhost:9090/api/v1/status/config"
 check_service "Grafana" "http://localhost:3000/api/health"
 
-# Orbit services (only check if nitro port is listening)
+# Arbitrum One L2 services (only check if nitro-l2 port is listening)
+NITRO_L2_PORT="${NITRO_L2_HTTP_PORT:-8549}"
+AMP_L2_JSONL="${AMP_L2_JSONL_PORT:-1623}"
+AMP_L2_ADMIN="${AMP_L2_ADMIN_PORT:-1630}"
+
+if curl -sf --max-time 1 -o /dev/null "http://localhost:${NITRO_L2_PORT}" 2>/dev/null || \
+   docker compose ps --format json 2>/dev/null | grep -q '"nitro-l2"'; then
+    echo ""
+    echo "  --- Arbitrum One L2 ---"
+    check_service "Nitro L2 RPC" "http://localhost:${NITRO_L2_PORT}" "POST" \
+        '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
+    check_service "Amp L2 JSONL" "http://localhost:${AMP_L2_JSONL}" "POST" '{"query":"SELECT 1"}'
+    check_service "Amp L2 Admin" "http://localhost:${AMP_L2_ADMIN}"
+fi
+
+# Orbit L3 services (only check if nitro port is listening)
 NITRO_PORT="${NITRO_HTTP_PORT:-8547}"
 AMP_ORBIT_JSONL="${AMP_ORBIT_JSONL_PORT:-1613}"
 AMP_ORBIT_ADMIN="${AMP_ORBIT_ADMIN_PORT:-1620}"
@@ -74,8 +89,8 @@ AMP_ORBIT_ADMIN="${AMP_ORBIT_ADMIN_PORT:-1620}"
 if curl -sf --max-time 1 -o /dev/null "http://localhost:${NITRO_PORT}" 2>/dev/null || \
    docker compose ps --format json 2>/dev/null | grep -q '"nitro"'; then
     echo ""
-    echo "  --- Orbit L2/L3 ---"
-    check_service "Nitro RPC" "http://localhost:${NITRO_PORT}" "POST" \
+    echo "  --- Orbit L3 ---"
+    check_service "Nitro Orbit RPC" "http://localhost:${NITRO_PORT}" "POST" \
         '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
     check_service "Amp Orbit JSONL" "http://localhost:${AMP_ORBIT_JSONL}" "POST" '{"query":"SELECT 1"}'
     check_service "Amp Orbit Admin" "http://localhost:${AMP_ORBIT_ADMIN}"
@@ -99,26 +114,49 @@ else
     echo "  Reth: unavailable"
 fi
 
-# Nitro sync status (if running)
-NITRO_SYNC=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
+# Nitro L2 sync status (if running)
+NITRO_L2_SYNC=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
     -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
-    "http://localhost:${NITRO_PORT}" 2>/dev/null) || NITRO_SYNC=""
+    "http://localhost:${NITRO_L2_PORT}" 2>/dev/null) || NITRO_L2_SYNC=""
 
-if [[ -n "$NITRO_SYNC" ]]; then
+if [[ -n "$NITRO_L2_SYNC" ]]; then
     echo ""
-    echo "  --- Nitro Sync Status ---"
-    if echo "$NITRO_SYNC" | grep -q '"result":false'; then
+    echo "  --- Nitro L2 (Arbitrum One) Sync Status ---"
+    if echo "$NITRO_L2_SYNC" | grep -q '"result":false'; then
+        BLOCK_HEX=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+            "http://localhost:${NITRO_L2_PORT}" 2>/dev/null | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        if [[ -n "$BLOCK_HEX" ]]; then
+            BLOCK_NUM=$((BLOCK_HEX))
+            echo "  Nitro L2: fully synced (block ${BLOCK_NUM})"
+        else
+            echo "  Nitro L2: fully synced"
+        fi
+    else
+        echo "  Nitro L2: syncing — $NITRO_L2_SYNC"
+    fi
+fi
+
+# Nitro Orbit L3 sync status (if running)
+NITRO_ORBIT_SYNC=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+    "http://localhost:${NITRO_PORT}" 2>/dev/null) || NITRO_ORBIT_SYNC=""
+
+if [[ -n "$NITRO_ORBIT_SYNC" ]]; then
+    echo ""
+    echo "  --- Nitro Orbit L3 Sync Status ---"
+    if echo "$NITRO_ORBIT_SYNC" | grep -q '"result":false'; then
         BLOCK_HEX=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
             -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
             "http://localhost:${NITRO_PORT}" 2>/dev/null | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
         if [[ -n "$BLOCK_HEX" ]]; then
             BLOCK_NUM=$((BLOCK_HEX))
-            echo "  Nitro: fully synced (block ${BLOCK_NUM})"
+            echo "  Nitro Orbit: fully synced (block ${BLOCK_NUM})"
         else
-            echo "  Nitro: fully synced"
+            echo "  Nitro Orbit: fully synced"
         fi
     else
-        echo "  Nitro: syncing — $NITRO_SYNC"
+        echo "  Nitro Orbit: syncing — $NITRO_ORBIT_SYNC"
     fi
 fi
 

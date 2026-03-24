@@ -1,0 +1,39 @@
+# Arbitrum One blocks dataset
+[dataset]
+name = "blocks"
+network = "arbitrum-one"
+provider = "l2-rpc"
+
+[schema]
+table = "blocks"
+
+[extraction]
+entity = "block"
+fields = [
+    "number",
+    "hash",
+    "parent_hash",
+    "timestamp",
+    "miner",
+    "gas_used",
+    "gas_limit",
+    "base_fee_per_gas",
+    "transaction_count",
+    "size",
+]
+
+[transform]
+sql = """
+SELECT
+    number,
+    hash,
+    parent_hash,
+    timestamp,
+    miner,
+    gas_used,
+    gas_limit,
+    base_fee_per_gas,
+    transaction_count,
+    size
+FROM raw_blocks
+"""

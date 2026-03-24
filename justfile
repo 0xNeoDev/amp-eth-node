@@ -23,25 +23,33 @@ up-dev:
 up-prod:
     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-# Start Orbit L2/L3 chain (Nitro + Amp, plus shared infra)
+# Start Arbitrum One L2 (Nitro L2 + Amp L2, derives from local L1)
+up-l2:
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml up -d
+
+# Start Arbitrum One L2 in production mode
+up-l2-prod:
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.prod.yml -f docker-compose.arbitrum-prod.yml up -d
+
+# Start Orbit L3 chain (Nitro Orbit + Amp Orbit, set NITRO_PARENT_CHAIN_URL)
 up-orbit:
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
 
-# Start Orbit in development mode (testnet, lower resources)
+# Start Orbit L3 in development mode (testnet, lower resources)
 up-orbit-dev:
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-dev.yml up -d
 
-# Start Orbit in production mode (host networking, NVMe, hardened)
+# Start Orbit L3 in production mode (host networking, NVMe, hardened)
 up-orbit-prod:
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-prod.yml up -d
 
-# Start both L1 and Orbit together
+# Start full self-hosted stack: L1 + L2 + L3 (no external RPCs)
 up-full:
-    docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.orbit.yml up -d
 
-# Start both L1 and Orbit in production mode
+# Start full stack in production mode
 up-full-prod:
-    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.prod.yml -f docker-compose.orbit-prod.yml up -d
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.orbit.yml -f docker-compose.prod.yml -f docker-compose.arbitrum-prod.yml -f docker-compose.orbit-prod.yml up -d
 
 # Stop all services
 down:
@@ -67,7 +75,8 @@ ps:
 versions:
     @echo "Reth:           ${RETH_VERSION}"
     @echo "Lighthouse:     ${LIGHTHOUSE_VERSION}"
-    @echo "Nitro:          ${NITRO_VERSION}"
+    @echo "Nitro L2:       ${NITRO_L2_VERSION}"
+    @echo "Nitro Orbit:    ${NITRO_ORBIT_VERSION}"
     @echo "Amp:            ${AMP_VERSION}"
     @echo "PostgreSQL:     ${POSTGRES_VERSION}"
     @echo "Grafana:        ${GRAFANA_VERSION}"
@@ -82,17 +91,33 @@ upgrade COMPONENT VERSION:
 amp-query QUERY:
     curl -sf -X POST -H 'Content-Type: application/json' -d '{"query":"{{ QUERY }}"}' http://localhost:${AMP_JSONL_PORT:-1603} | jq .
 
-# Run an Amp Orbit query via JSONL HTTP API
+# Run an Amp L2 query via JSONL HTTP API
+amp-l2-query QUERY:
+    curl -sf -X POST -H 'Content-Type: application/json' -d '{"query":"{{ QUERY }}"}' http://localhost:${AMP_L2_JSONL_PORT:-1623} | jq .
+
+# Run an Amp Orbit L3 query via JSONL HTTP API
 amp-orbit-query QUERY:
     curl -sf -X POST -H 'Content-Type: application/json' -d '{"query":"{{ QUERY }}"}' http://localhost:${AMP_ORBIT_JSONL_PORT:-1613} | jq .
 
-# Show Nitro sync status
+# Show Nitro L2 (Arbitrum One) sync status
+l2-sync-status:
+    @curl -sf -X POST -H 'Content-Type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+        http://localhost:${NITRO_L2_HTTP_PORT:-8549} | jq .
+
+# Show Nitro L2 chain head block number
+l2-block-number:
+    @curl -sf -X POST -H 'Content-Type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:${NITRO_L2_HTTP_PORT:-8549} | jq -r '.result' | xargs printf "%d\n"
+
+# Show Nitro Orbit L3 sync status
 orbit-sync-status:
     @curl -sf -X POST -H 'Content-Type: application/json' \
         -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
         http://localhost:${NITRO_HTTP_PORT:-8547} | jq .
 
-# Show Nitro chain head block number
+# Show Nitro Orbit L3 chain head block number
 orbit-block-number:
     @curl -sf -X POST -H 'Content-Type: application/json' \
         -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
@@ -162,7 +187,10 @@ validate:
     docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.bench.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.arbitrum-prod.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-dev.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-prod.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml -f docker-compose.orbit.yml config --quiet
     @echo "All compose files are valid."

@@ -1,0 +1,108 @@
+# Arbitrum One L2 overlay — Nitro node + Amp indexer for Arbitrum mainnet
+# Usage: docker compose -f docker-compose.yml -f docker-compose.arbitrum.yml up -d
+#
+# This overlay adds:
+#   - nitro-l2:    Arbitrum One Nitro node (derives state from Ethereum L1)
+#   - amp-l2:      Amp instance indexing Arbitrum One
+#
+# The Nitro L2 node connects to the co-located Reth (execution) and Lighthouse
+# (beacon/consensus) services for trustless L1 data. No external RPC needed.
+#
+# On first startup, Nitro downloads a pruned snapshot from the Arbitrum
+# Foundation (~300GB). This can take a while depending on bandwidth.
+#
+# For the full self-hosted stack (L1 + L2 + L3):
+#   docker compose -f docker-compose.yml \
+#     -f docker-compose.arbitrum.yml \
+#     -f docker-compose.orbit.yml up -d
+#   Then set NITRO_PARENT_CHAIN_URL=http://nitro-l2:8547 in .env.local
+#   so the L3 Orbit node derives from the local L2 instead of an external RPC.
+
+volumes:
+  nitro-l2-data:
+  amp-l2-data:
+
+services:
+  nitro-l2:
+    image: offchainlabs/nitro-node:${NITRO_L2_VERSION}
+    restart: unless-stopped
+    depends_on:
+      reth:
+        condition: service_healthy
+    volumes:
+      - nitro-l2-data:/data
+    ports:
+      - "${NITRO_L2_HTTP_PORT:-8549}:8547"
+      - "${NITRO_L2_WS_PORT:-8550}:8548"
+      - "${NITRO_L2_METRICS_PORT:-6071}:6070"
+    command:
+      - --parent-chain.connection.url=http://reth:8545
+      - --parent-chain.blob-client.beacon-url=http://lighthouse:5052
+      - --chain.id=42161
+      - --persistent.chain=/data/chain
+      - --persistent.global-config=/data/global
+      - --http.addr=0.0.0.0
+      - --http.port=8547
+      - --http.vhosts=*
+      - --http.api=net,web3,eth,arb
+      - --ws.addr=0.0.0.0
+      - --ws.port=8548
+      - --ws.origins=*
+      - --ws.api=net,web3,eth,arb
+      - --metrics
+      - --metrics-server.addr=0.0.0.0
+      - --metrics-server.port=6070
+      - --execution.caching.archive
+      - --init.latest=pruned
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}' http://localhost:8547 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+
+  amp-l2:
+    image: ghcr.io/edgeandnode/amp:${AMP_VERSION}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nitro-l2:
+        condition: service_healthy
+    volumes:
+      - amp-l2-data:/data
+      - ./config/amp-l2:/config:ro
+    ports:
+      - "${AMP_L2_FLIGHT_PORT:-1622}:1602"
+      - "${AMP_L2_JSONL_PORT:-1623}:1603"
+      - "${AMP_L2_ADMIN_PORT:-1630}:1610"
+    environment:
+      AMP_METADATA_DB_URL: "postgres://${POSTGRES_USER:-amp}:${POSTGRES_PASSWORD:-amp}@postgres:5432/${POSTGRES_L2_DB:-amp_l2}"
+    command:
+      - ampd
+      - solo
+      - --config=/config/config.toml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"query\":\"SELECT 1\"}' http://localhost:1603 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Ensure the L2 database exists in PostgreSQL
+  postgres-init-l2:
+    image: postgres:${POSTGRES_VERSION}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-amp}
+    command: >
+      sh -c '
+        psql -h postgres -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-amp} -tc
+        "SELECT 1 FROM pg_database WHERE datname = '"'"'${POSTGRES_L2_DB:-amp_l2}'"'"'" |
+        grep -q 1 ||
+        psql -h postgres -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-amp} -c
+        "CREATE DATABASE ${POSTGRES_L2_DB:-amp_l2}"
+      '

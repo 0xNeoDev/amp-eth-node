@@ -1,0 +1,19 @@
+# Amp configuration for Arbitrum One L2 chain indexing
+# Docs: https://docs.thegraph.com/amp
+
+[metadata]
+# PostgreSQL connection — overridden by AMP_METADATA_DB_URL env var
+database_url = "postgres://amp:amp@postgres:5432/amp_l2"
+
+[data]
+dir = "/data"
+
+[server]
+flight_addr = "0.0.0.0:1602"
+jsonl_addr = "0.0.0.0:1603"
+
+[admin]
+addr = "0.0.0.0:1610"
+
+[telemetry]
+otlp_endpoint = "http://otel-collector:4317"

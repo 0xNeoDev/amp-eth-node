@@ -1,23 +1,19 @@
-# Arbitrum Orbit L2/L3 overlay — Nitro node + Amp indexer for Orbit chains
+# Arbitrum Orbit L3 overlay — Nitro node + Amp indexer for Orbit chains
 # Usage: docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
 #
 # This overlay adds:
-#   - nitro:       Arbitrum Nitro node (execution client for Orbit chains)
+#   - nitro:       Arbitrum Nitro node (execution client for Orbit L3 chain)
 #   - amp-orbit:   Separate Amp instance indexing the Orbit chain
 #
-# The Nitro node connects to a parent chain RPC (e.g., Base, Ethereum) to
-# derive state. Set NITRO_PARENT_CHAIN_URL in .env.local to point at your
-# parent chain endpoint (self-hosted or third-party provider).
-#
-# The existing L1 services (reth, lighthouse, amp) remain unchanged — you can
-# run both L1 and Orbit simultaneously, or disable L1 services via profiles.
+# The Orbit L3 Nitro node connects to a parent L2 chain (Arbitrum One) to
+# derive state. Set NITRO_PARENT_CHAIN_URL in .env.local:
+#   - Self-hosted L2: NITRO_PARENT_CHAIN_URL=http://nitro-l2:8547
+#     (requires docker-compose.arbitrum.yml running alongside)
+#   - External RPC:   NITRO_PARENT_CHAIN_URL=https://arb-mainnet.g.alchemy.com/v2/<key>
 #
 # Required .env.local overrides:
-#   NITRO_PARENT_CHAIN_URL=https://base-mainnet.g.alchemy.com/v2/<key>
+#   NITRO_PARENT_CHAIN_URL=http://nitro-l2:8547  (or external Arbitrum One RPC)
 #   ORBIT_CHAIN_ID=80451        (or 19411 for testnet)
-#
-# Optional:
-#   NITRO_CHAIN_INFO_FILE=/config/orbit-chain-info.json
 
 volumes:
   nitro-data:
@@ -25,7 +21,7 @@ volumes:
 
 services:
   nitro:
-    image: offchainlabs/nitro-node:${NITRO_VERSION}
+    image: offchainlabs/nitro-node:${NITRO_ORBIT_VERSION}
     restart: unless-stopped
     volumes:
       - nitro-data:/data

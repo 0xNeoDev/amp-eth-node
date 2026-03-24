@@ -2,7 +2,7 @@
   {
     "chain-id": 80451,
     "chain-name": "orbit-mainnet",
-    "parent-chain-id": 8453,
+    "parent-chain-id": 42161,
     "chain-config": {
       "chainId": 80451,
       "homesteadBlock": 0,
@@ -42,7 +42,7 @@
   {
     "chain-id": 19411,
     "chain-name": "orbit-testnet",
-    "parent-chain-id": 84532,
+    "parent-chain-id": 421614,
     "chain-config": {
       "chainId": 19411,
       "homesteadBlock": 0,
