@@ -1,0 +1,72 @@
+# Orbit production overlay — host networking, NVMe bind mounts, security hardening
+# Usage: docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-prod.yml up -d
+#
+# Required .env.local overrides:
+#   NITRO_DATA_DIR=/mnt/nvme0/nitro
+#   AMP_ORBIT_DATA_DIR=/mnt/nvme0/amp-orbit
+#   NITRO_PARENT_CHAIN_URL=<your-parent-chain-rpc>
+#   ORBIT_CHAIN_ID=80451
+
+services:
+  nitro:
+    network_mode: host
+    restart: always
+    stop_grace_period: 60s
+    volumes:
+      - ${NITRO_DATA_DIR:-nitro-data}:/data
+      - ./config/nitro:/config:ro
+    command:
+      - --parent-chain.connection.url=${NITRO_PARENT_CHAIN_URL}
+      - --chain.id=${ORBIT_CHAIN_ID:-80451}
+      - --chain.info-files=/config/orbit-chain-info.json
+      - --persistent.chain=/data/chain
+      - --persistent.global-config=/data/global
+      - --http.addr=127.0.0.1
+      - --http.port=8547
+      - --http.vhosts=localhost
+      - --http.api=net,web3,eth,arb
+      - --ws.addr=127.0.0.1
+      - --ws.port=8548
+      - --ws.api=net,web3,eth,arb
+      - --metrics
+      - --metrics-server.addr=127.0.0.1
+      - --metrics-server.port=6070
+      - --execution.caching.archive
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  amp-orbit:
+    restart: always
+    volumes:
+      - ${AMP_ORBIT_DATA_DIR:-amp-orbit-data}:/data
+      - ./config/amp-orbit:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  postgres-init-orbit:
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "1"

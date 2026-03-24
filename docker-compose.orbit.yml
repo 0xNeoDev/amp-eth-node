@@ -1,0 +1,107 @@
+# Arbitrum Orbit L2/L3 overlay — Nitro node + Amp indexer for Orbit chains
+# Usage: docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
+#
+# This overlay adds:
+#   - nitro:       Arbitrum Nitro node (execution client for Orbit chains)
+#   - amp-orbit:   Separate Amp instance indexing the Orbit chain
+#
+# The Nitro node connects to a parent chain RPC (e.g., Base, Ethereum) to
+# derive state. Set NITRO_PARENT_CHAIN_URL in .env.local to point at your
+# parent chain endpoint (self-hosted or third-party provider).
+#
+# The existing L1 services (reth, lighthouse, amp) remain unchanged — you can
+# run both L1 and Orbit simultaneously, or disable L1 services via profiles.
+#
+# Required .env.local overrides:
+#   NITRO_PARENT_CHAIN_URL=https://base-mainnet.g.alchemy.com/v2/<key>
+#   ORBIT_CHAIN_ID=80451        (or 19411 for testnet)
+#
+# Optional:
+#   NITRO_CHAIN_INFO_FILE=/config/orbit-chain-info.json
+
+volumes:
+  nitro-data:
+  amp-orbit-data:
+
+services:
+  nitro:
+    image: offchainlabs/nitro-node:${NITRO_VERSION}
+    restart: unless-stopped
+    volumes:
+      - nitro-data:/data
+      - ./config/nitro:/config:ro
+    ports:
+      - "${NITRO_HTTP_PORT:-8547}:8547"
+      - "${NITRO_WS_PORT:-8548}:8548"
+      - "${NITRO_METRICS_PORT:-6070}:6070"
+    command:
+      - --parent-chain.connection.url=${NITRO_PARENT_CHAIN_URL}
+      - --chain.id=${ORBIT_CHAIN_ID:-80451}
+      - --chain.info-files=/config/orbit-chain-info.json
+      - --persistent.chain=/data/chain
+      - --persistent.global-config=/data/global
+      - --http.addr=0.0.0.0
+      - --http.port=8547
+      - --http.vhosts=*
+      - --http.api=net,web3,eth,arb
+      - --ws.addr=0.0.0.0
+      - --ws.port=8548
+      - --ws.origins=*
+      - --ws.api=net,web3,eth,arb
+      - --metrics
+      - --metrics-server.addr=0.0.0.0
+      - --metrics-server.port=6070
+      - --execution.caching.archive
+      - --init.empty=${NITRO_INIT_EMPTY:-false}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}' http://localhost:8547 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  amp-orbit:
+    image: ghcr.io/edgeandnode/amp:${AMP_VERSION}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nitro:
+        condition: service_healthy
+    volumes:
+      - amp-orbit-data:/data
+      - ./config/amp-orbit:/config:ro
+    ports:
+      - "${AMP_ORBIT_FLIGHT_PORT:-1612}:1602"
+      - "${AMP_ORBIT_JSONL_PORT:-1613}:1603"
+      - "${AMP_ORBIT_ADMIN_PORT:-1620}:1610"
+    environment:
+      AMP_METADATA_DB_URL: "postgres://${POSTGRES_USER:-amp}:${POSTGRES_PASSWORD:-amp}@postgres:5432/${POSTGRES_ORBIT_DB:-amp_orbit}"
+    command:
+      - ampd
+      - solo
+      - --config=/config/config.toml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"query\":\"SELECT 1\"}' http://localhost:1603 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Ensure the orbit database exists in PostgreSQL
+  postgres-init-orbit:
+    image: postgres:${POSTGRES_VERSION}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-amp}
+    command: >
+      sh -c '
+        psql -h postgres -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-amp} -tc
+        "SELECT 1 FROM pg_database WHERE datname = '"'"'${POSTGRES_ORBIT_DB:-amp_orbit}'"'"'" |
+        grep -q 1 ||
+        psql -h postgres -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-amp} -c
+        "CREATE DATABASE ${POSTGRES_ORBIT_DB:-amp_orbit}"
+      '

@@ -23,6 +23,26 @@ up-dev:
 up-prod:
     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+# Start Orbit L2/L3 chain (Nitro + Amp, plus shared infra)
+up-orbit:
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
+
+# Start Orbit in development mode (testnet, lower resources)
+up-orbit-dev:
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-dev.yml up -d
+
+# Start Orbit in production mode (host networking, NVMe, hardened)
+up-orbit-prod:
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-prod.yml up -d
+
+# Start both L1 and Orbit together
+up-full:
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml up -d
+
+# Start both L1 and Orbit in production mode
+up-full-prod:
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.prod.yml -f docker-compose.orbit-prod.yml up -d
+
 # Stop all services
 down:
     docker compose down
@@ -47,6 +67,7 @@ ps:
 versions:
     @echo "Reth:           ${RETH_VERSION}"
     @echo "Lighthouse:     ${LIGHTHOUSE_VERSION}"
+    @echo "Nitro:          ${NITRO_VERSION}"
     @echo "Amp:            ${AMP_VERSION}"
     @echo "PostgreSQL:     ${POSTGRES_VERSION}"
     @echo "Grafana:        ${GRAFANA_VERSION}"
@@ -60,6 +81,22 @@ upgrade COMPONENT VERSION:
 # Run an Amp query via JSONL HTTP API
 amp-query QUERY:
     curl -sf -X POST -H 'Content-Type: application/json' -d '{"query":"{{ QUERY }}"}' http://localhost:${AMP_JSONL_PORT:-1603} | jq .
+
+# Run an Amp Orbit query via JSONL HTTP API
+amp-orbit-query QUERY:
+    curl -sf -X POST -H 'Content-Type: application/json' -d '{"query":"{{ QUERY }}"}' http://localhost:${AMP_ORBIT_JSONL_PORT:-1613} | jq .
+
+# Show Nitro sync status
+orbit-sync-status:
+    @curl -sf -X POST -H 'Content-Type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+        http://localhost:${NITRO_HTTP_PORT:-8547} | jq .
+
+# Show Nitro chain head block number
+orbit-block-number:
+    @curl -sf -X POST -H 'Content-Type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:${NITRO_HTTP_PORT:-8547} | jq -r '.result' | xargs printf "%d\n"
 
 # Open Grafana in browser
 grafana:
@@ -125,4 +162,7 @@ validate:
     docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
     docker compose -f docker-compose.yml -f docker-compose.bench.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-dev.yml config --quiet
+    docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-prod.yml config --quiet
     @echo "All compose files are valid."

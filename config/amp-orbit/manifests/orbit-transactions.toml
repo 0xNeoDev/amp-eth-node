@@ -1,0 +1,47 @@
+# Orbit chain transactions dataset
+[dataset]
+name = "transactions"
+network = "orbit"
+provider = "orbit-rpc"
+
+[schema]
+table = "transactions"
+
+[extraction]
+entity = "transaction"
+fields = [
+    "hash",
+    "block_number",
+    "block_hash",
+    "transaction_index",
+    "from",
+    "to",
+    "value",
+    "gas_price",
+    "gas",
+    "input",
+    "nonce",
+    "type",
+    "max_fee_per_gas",
+    "max_priority_fee_per_gas",
+]
+
+[transform]
+sql = """
+SELECT
+    hash,
+    block_number,
+    block_hash,
+    transaction_index,
+    "from",
+    "to",
+    value,
+    gas_price,
+    gas,
+    input,
+    nonce,
+    type,
+    max_fee_per_gas,
+    max_priority_fee_per_gas
+FROM raw_transactions
+"""

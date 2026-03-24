@@ -1,0 +1,82 @@
+[
+  {
+    "chain-id": 80451,
+    "chain-name": "orbit-mainnet",
+    "parent-chain-id": 8453,
+    "chain-config": {
+      "chainId": 80451,
+      "homesteadBlock": 0,
+      "eip150Block": 0,
+      "eip155Block": 0,
+      "eip158Block": 0,
+      "byzantiumBlock": 0,
+      "constantinopleBlock": 0,
+      "petersburgBlock": 0,
+      "istanbulBlock": 0,
+      "muirGlacierBlock": 0,
+      "berlinBlock": 0,
+      "londonBlock": 0,
+      "clique": {
+        "period": 0,
+        "epoch": 0
+      },
+      "arbitrum": {
+        "EnableArbOS": true,
+        "AllowDebugPrecompiles": false,
+        "DataAvailabilityCommittee": false,
+        "InitialArbOSVersion": 20,
+        "InitialChainOwner": "0x0000000000000000000000000000000000000000",
+        "GenesisBlockNum": 0
+      }
+    },
+    "rollup": {
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "inbox": "0x0000000000000000000000000000000000000000",
+      "sequencer-inbox": "0x0000000000000000000000000000000000000000",
+      "rollup": "0x0000000000000000000000000000000000000000",
+      "validator-utils": "0x0000000000000000000000000000000000000000",
+      "validator-wallet-creator": "0x0000000000000000000000000000000000000000",
+      "deployed-at": 0
+    }
+  },
+  {
+    "chain-id": 19411,
+    "chain-name": "orbit-testnet",
+    "parent-chain-id": 84532,
+    "chain-config": {
+      "chainId": 19411,
+      "homesteadBlock": 0,
+      "eip150Block": 0,
+      "eip155Block": 0,
+      "eip158Block": 0,
+      "byzantiumBlock": 0,
+      "constantinopleBlock": 0,
+      "petersburgBlock": 0,
+      "istanbulBlock": 0,
+      "muirGlacierBlock": 0,
+      "berlinBlock": 0,
+      "londonBlock": 0,
+      "clique": {
+        "period": 0,
+        "epoch": 0
+      },
+      "arbitrum": {
+        "EnableArbOS": true,
+        "AllowDebugPrecompiles": true,
+        "DataAvailabilityCommittee": false,
+        "InitialArbOSVersion": 20,
+        "InitialChainOwner": "0x0000000000000000000000000000000000000000",
+        "GenesisBlockNum": 0
+      }
+    },
+    "rollup": {
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "inbox": "0x0000000000000000000000000000000000000000",
+      "sequencer-inbox": "0x0000000000000000000000000000000000000000",
+      "rollup": "0x0000000000000000000000000000000000000000",
+      "validator-utils": "0x0000000000000000000000000000000000000000",
+      "validator-wallet-creator": "0x0000000000000000000000000000000000000000",
+      "deployed-at": 0
+    }
+  }
+]

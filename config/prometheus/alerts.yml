@@ -57,6 +57,35 @@ groups:
           summary: "Amp P99 query latency exceeds 5s"
           description: "P99 query latency is {{ $value }}s."
 
+  - name: orbit_health
+    rules:
+      - alert: NitroNotSyncing
+        expr: nitro_block_number == nitro_block_number offset 5m
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nitro block height is stalled"
+          description: "Nitro block number has not changed in 10 minutes."
+
+      - alert: AmpOrbitIndexingStalled
+        expr: amp_blocks_indexed_total{job="amp-orbit"} == amp_blocks_indexed_total{job="amp-orbit"} offset 5m
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Amp Orbit has stopped indexing blocks"
+          description: "No new Orbit blocks indexed in 10 minutes."
+
+      - alert: AmpOrbitQueryLatencyHigh
+        expr: histogram_quantile(0.99, rate(amp_query_duration_seconds_bucket{job="amp-orbit"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Amp Orbit P99 query latency exceeds 5s"
+          description: "P99 query latency is {{ $value }}s."
+
   - name: infrastructure
     rules:
       # --- CPU ---

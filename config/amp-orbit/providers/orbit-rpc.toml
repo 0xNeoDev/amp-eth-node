@@ -1,0 +1,10 @@
+# Orbit L2/L3 chain EVM-RPC provider via Nitro HTTP
+# Nitro does not support IPC sockets, so HTTP is used instead.
+# For best performance, run Nitro and Amp on the same host to minimize latency.
+
+kind = "evm-rpc"
+network = "orbit"
+url = "http://nitro:8547"
+concurrent_request_limit = 64
+rpc_batch_size = 100
+timeout = 30

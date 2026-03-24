@@ -1,0 +1,37 @@
+# Orbit development overlay — testnet, lower resources, debug APIs
+# Usage: docker compose -f docker-compose.yml -f docker-compose.orbit.yml -f docker-compose.orbit-dev.yml up -d
+
+services:
+  nitro:
+    command:
+      - --parent-chain.connection.url=${NITRO_PARENT_CHAIN_URL}
+      - --chain.id=${ORBIT_CHAIN_ID:-19411}
+      - --chain.info-files=/config/orbit-chain-info.json
+      - --persistent.chain=/data/chain
+      - --persistent.global-config=/data/global
+      - --http.addr=0.0.0.0
+      - --http.port=8547
+      - --http.vhosts=*
+      - --http.corsdomain=*
+      - --http.api=net,web3,eth,arb,debug
+      - --ws.addr=0.0.0.0
+      - --ws.port=8548
+      - --ws.origins=*
+      - --ws.api=net,web3,eth,arb,debug
+      - --metrics
+      - --metrics-server.addr=0.0.0.0
+      - --metrics-server.port=6070
+      - --execution.caching.archive
+      - --init.empty=${NITRO_INIT_EMPTY:-false}
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8G
+
+  amp-orbit:
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 8G

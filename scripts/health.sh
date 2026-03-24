@@ -66,6 +66,21 @@ check_service "OTel Collector" "http://localhost:13133/health"
 check_service "Prometheus" "http://localhost:9090/api/v1/status/config"
 check_service "Grafana" "http://localhost:3000/api/health"
 
+# Orbit services (only check if nitro port is listening)
+NITRO_PORT="${NITRO_HTTP_PORT:-8547}"
+AMP_ORBIT_JSONL="${AMP_ORBIT_JSONL_PORT:-1613}"
+AMP_ORBIT_ADMIN="${AMP_ORBIT_ADMIN_PORT:-1620}"
+
+if curl -sf --max-time 1 -o /dev/null "http://localhost:${NITRO_PORT}" 2>/dev/null || \
+   docker compose ps --format json 2>/dev/null | grep -q '"nitro"'; then
+    echo ""
+    echo "  --- Orbit L2/L3 ---"
+    check_service "Nitro RPC" "http://localhost:${NITRO_PORT}" "POST" \
+        '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
+    check_service "Amp Orbit JSONL" "http://localhost:${AMP_ORBIT_JSONL}" "POST" '{"query":"SELECT 1"}'
+    check_service "Amp Orbit Admin" "http://localhost:${AMP_ORBIT_ADMIN}"
+fi
+
 echo ""
 
 # Reth sync status
@@ -82,6 +97,29 @@ if [[ -n "$SYNC_RESULT" ]]; then
     fi
 else
     echo "  Reth: unavailable"
+fi
+
+# Nitro sync status (if running)
+NITRO_SYNC=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+    "http://localhost:${NITRO_PORT}" 2>/dev/null) || NITRO_SYNC=""
+
+if [[ -n "$NITRO_SYNC" ]]; then
+    echo ""
+    echo "  --- Nitro Sync Status ---"
+    if echo "$NITRO_SYNC" | grep -q '"result":false'; then
+        BLOCK_HEX=$(curl -sf --max-time 5 -X POST -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+            "http://localhost:${NITRO_PORT}" 2>/dev/null | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+        if [[ -n "$BLOCK_HEX" ]]; then
+            BLOCK_NUM=$((BLOCK_HEX))
+            echo "  Nitro: fully synced (block ${BLOCK_NUM})"
+        else
+            echo "  Nitro: fully synced"
+        fi
+    else
+        echo "  Nitro: syncing — $NITRO_SYNC"
+    fi
 fi
 
 echo ""
